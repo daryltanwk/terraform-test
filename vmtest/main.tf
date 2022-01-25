@@ -175,6 +175,45 @@ resource "azurerm_linux_virtual_machine" "vm3" {
   }
 }
 
+# Security Groups
+
+resource "azurerm_network_security_group" "secgrp" {
+  name                = "${azurerm_resource_group.rg.name}-secgrp"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+}
+
+resource "azurerm_network_security_rule" "allowSSH" {
+  name                        = "${azurerm_resource_group.rg.name}-allowSSH"
+  resource_group_name         = azurerm_resource_group.rg.name
+  network_security_group_name = azurerm_network_security_group.secgrp.name
+  protocol                    = "TCP"
+  source_port_range           = "*"
+  destination_port_range      = "22"
+  source_address_prefix       = "*"
+  destination_address_prefix  = "10.0.1.0/24"
+  access                      = "Allow"
+  priority                    = 100
+  direction                   = "Inbound"
+
+}
+
+resource "azurerm_network_interface_security_group_association" "secgrp-nic1assoc" {
+  network_interface_id      = azurerm_network_interface.vmnic1.id
+  network_security_group_id = azurerm_network_security_group.secgrp.id
+}
+
+resource "azurerm_network_interface_security_group_association" "secgrp-nic2assoc" {
+  network_interface_id      = azurerm_network_interface.vmnic2.id
+  network_security_group_id = azurerm_network_security_group.secgrp.id
+}
+
+resource "azurerm_network_interface_security_group_association" "secgrp-nic3assoc" {
+  network_interface_id      = azurerm_network_interface.vmnic3.id
+  network_security_group_id = azurerm_network_security_group.secgrp.id
+}
+# Outputs
+
 data "azurerm_public_ip" "ext-ip" {
   name                = azurerm_public_ip.pubip.name
   resource_group_name = azurerm_resource_group.rg.name
