@@ -72,14 +72,78 @@ resource "azurerm_subnet_route_table_association" "net3-assoc" {
 
 # Virtual Machines
 
-# resource "azurerm_virtual_machine" "db" {
+resource "azurerm_network_interface" "vmnic1" {
+  name                = "${azurerm_subnet.net1.name}-nic1"
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
 
-# }
+  ip_configuration {
+    name                          = "${azurerm_subnet.net1.name}-internal"
+    subnet_id                     = azurerm_subnet.net1.id
+    private_ip_address_allocation = "Dynamic"
+  }
+}
 
-# resource "azurerm_virtual_machine" "app" {
+resource "azurerm_linux_virtual_machine" "vm1" {
+  name                            = "${azurerm_resource_group.rg.name}-vm1"
+  resource_group_name             = azurerm_resource_group.rg.name
+  location                        = azurerm_resource_group.rg.location
+  size                            = "Standard_B1ls"
+  admin_username                  = "userone"
+  admin_password                  = "User1pass"
+  disable_password_authentication = "false"
 
-# }
+  network_interface_ids = [
+    azurerm_network_interface.vmnic1.id
+  ]
 
-# resource "azurerm_virtual_machine" "web" {
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "UbuntuServer"
+    sku       = "18.04-LTS"
+    version   = "latest"
+  }
 
-# }
+  os_disk {
+    storage_account_type = "Standard_LRS"
+    caching              = "ReadWrite"
+  }
+}
+
+resource "azurerm_network_interface" "vmnic2" {
+  name                = "${azurerm_subnet.net2.name}-nic2"
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
+
+  ip_configuration {
+    name                          = "${azurerm_subnet.net2.name}-internal"
+    subnet_id                     = azurerm_subnet.net2.id
+    private_ip_address_allocation = "Dynamic"
+  }
+}
+
+resource "azurerm_linux_virtual_machine" "vm2" {
+  name                            = "${azurerm_resource_group.rg.name}-vm2"
+  resource_group_name             = azurerm_resource_group.rg.name
+  location                        = azurerm_resource_group.rg.location
+  size                            = "Standard_B1ls"
+  admin_username                  = "usertwo"
+  admin_password                  = "User2pass"
+  disable_password_authentication = "false"
+
+  network_interface_ids = [
+    azurerm_network_interface.vmnic2.id
+  ]
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "UbuntuServer"
+    sku       = "18.04-LTS"
+    version   = "latest"
+  }
+
+  os_disk {
+    storage_account_type = "Standard_LRS"
+    caching              = "ReadWrite"
+  }
+}
