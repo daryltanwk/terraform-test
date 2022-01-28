@@ -16,7 +16,7 @@ provider "azurerm" {
 
 resource "azurerm_resource_group" "rg" {
   location = "Southeast Asia"
-  name     = "test-dt"
+  name     = "${local.project_name}-${local.user}"
 }
 
 # Networking
@@ -29,25 +29,13 @@ resource "azurerm_virtual_network" "vnet" {
   location            = azurerm_resource_group.rg.location
 }
 
-resource "azurerm_subnet" "net1" {
-  name                 = "${azurerm_resource_group.rg.name}-net1"
-  resource_group_name  = azurerm_resource_group.rg.name
-  virtual_network_name = azurerm_virtual_network.vnet.name
-  address_prefixes     = ["10.0.1.0/24"]
-}
+resource "azurerm_subnet" "subnets" {
+  for_each = { for idx, clus in var.cluster_names : clus => idx }
 
-resource "azurerm_subnet" "net2" {
-  name                 = "${azurerm_resource_group.rg.name}-net2"
+  name                 = "${azurerm_resource_group.rg.name}-subnet-${each.key}"
   resource_group_name  = azurerm_resource_group.rg.name
   virtual_network_name = azurerm_virtual_network.vnet.name
-  address_prefixes     = ["10.0.2.0/24"]
-}
-
-resource "azurerm_subnet" "net3" {
-  name                 = "${azurerm_resource_group.rg.name}-net3"
-  resource_group_name  = azurerm_resource_group.rg.name
-  virtual_network_name = azurerm_virtual_network.vnet.name
-  address_prefixes     = ["10.0.3.0/24"]
+  address_prefixes     = ["10.0.${each.value + 1}.0/24"]
 }
 
 resource "azurerm_public_ip" "pubip" {
@@ -59,21 +47,25 @@ resource "azurerm_public_ip" "pubip" {
 
 # Virtual Machines
 
-resource "azurerm_network_interface" "vmnic1" {
-  name                = "${azurerm_subnet.net1.name}-nic1"
+resource "azurerm_network_interface" "vmnics" {
+  for_each = { for idx, clus in var.cluster_names : clus => idx }
+
+  name                = "${azurerm_subnet.subnets[each.key].name}-nic"
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
 
   ip_configuration {
-    name                          = "${azurerm_subnet.net1.name}-internal"
-    subnet_id                     = azurerm_subnet.net1.id
+    name                          = "${azurerm_subnet.subnets[each.key].name}-internal"
+    subnet_id                     = azurerm_subnet.subnets[each.key].id
     private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = azurerm_public_ip.pubip.id
+    public_ip_address_id          = each.value == 0 ? azurerm_public_ip.pubip.id : null
   }
 }
 
-resource "azurerm_linux_virtual_machine" "vm1" {
-  name                            = "${azurerm_resource_group.rg.name}-vm1"
+resource "azurerm_linux_virtual_machine" "vms" {
+  for_each = { for idx, clus in var.cluster_names : clus => idx }
+
+  name                            = "${azurerm_resource_group.rg.name}-${each.key}-vm"
   resource_group_name             = azurerm_resource_group.rg.name
   location                        = azurerm_resource_group.rg.location
   size                            = "Standard_B1ls"
@@ -82,84 +74,7 @@ resource "azurerm_linux_virtual_machine" "vm1" {
   disable_password_authentication = "false"
 
   network_interface_ids = [
-    azurerm_network_interface.vmnic1.id
-  ]
-
-  source_image_reference {
-    publisher = "Canonical"
-    offer     = "UbuntuServer"
-    sku       = "18.04-LTS"
-    version   = "latest"
-  }
-
-  os_disk {
-    storage_account_type = "Standard_LRS"
-    caching              = "ReadWrite"
-  }
-}
-
-resource "azurerm_network_interface" "vmnic2" {
-  name                = "${azurerm_subnet.net2.name}-nic2"
-  resource_group_name = azurerm_resource_group.rg.name
-  location            = azurerm_resource_group.rg.location
-
-  ip_configuration {
-    name                          = "${azurerm_subnet.net2.name}-internal"
-    subnet_id                     = azurerm_subnet.net2.id
-    private_ip_address_allocation = "Dynamic"
-  }
-}
-
-resource "azurerm_linux_virtual_machine" "vm2" {
-  name                            = "${azurerm_resource_group.rg.name}-vm2"
-  resource_group_name             = azurerm_resource_group.rg.name
-  location                        = azurerm_resource_group.rg.location
-  size                            = "Standard_B1ls"
-  admin_username                  = "usertwo"
-  admin_password                  = "User2pass"
-  disable_password_authentication = "false"
-
-  network_interface_ids = [
-    azurerm_network_interface.vmnic2.id
-  ]
-
-  source_image_reference {
-    publisher = "Canonical"
-    offer     = "UbuntuServer"
-    sku       = "18.04-LTS"
-    version   = "latest"
-  }
-
-  os_disk {
-    storage_account_type = "Standard_LRS"
-    caching              = "ReadWrite"
-  }
-}
-
-
-resource "azurerm_network_interface" "vmnic3" {
-  name                = "${azurerm_subnet.net3.name}-nic3"
-  resource_group_name = azurerm_resource_group.rg.name
-  location            = azurerm_resource_group.rg.location
-
-  ip_configuration {
-    name                          = "${azurerm_subnet.net3.name}-internal"
-    subnet_id                     = azurerm_subnet.net3.id
-    private_ip_address_allocation = "Dynamic"
-  }
-}
-
-resource "azurerm_linux_virtual_machine" "vm3" {
-  name                            = "${azurerm_resource_group.rg.name}-vm3"
-  resource_group_name             = azurerm_resource_group.rg.name
-  location                        = azurerm_resource_group.rg.location
-  size                            = "Standard_B1ls"
-  admin_username                  = "userthree"
-  admin_password                  = "User3pass"
-  disable_password_authentication = "false"
-
-  network_interface_ids = [
-    azurerm_network_interface.vmnic3.id
+    azurerm_network_interface.vmnics[each.key].id
   ]
 
   source_image_reference {
@@ -198,25 +113,21 @@ resource "azurerm_network_security_rule" "allowSSH" {
 
 }
 
-resource "azurerm_network_interface_security_group_association" "secgrp-nic1assoc" {
-  network_interface_id      = azurerm_network_interface.vmnic1.id
+resource "azurerm_network_interface_security_group_association" "secgrp-nicassocs" {
+  for_each = { for idx, clus in var.cluster_names : clus => idx }
+
+  network_interface_id      = azurerm_network_interface.vmnics[each.key].id
   network_security_group_id = azurerm_network_security_group.secgrp.id
 }
 
-resource "azurerm_network_interface_security_group_association" "secgrp-nic2assoc" {
-  network_interface_id      = azurerm_network_interface.vmnic2.id
-  network_security_group_id = azurerm_network_security_group.secgrp.id
-}
-
-resource "azurerm_network_interface_security_group_association" "secgrp-nic3assoc" {
-  network_interface_id      = azurerm_network_interface.vmnic3.id
-  network_security_group_id = azurerm_network_security_group.secgrp.id
-}
 # Outputs
 
 data "azurerm_public_ip" "ext-ip" {
   name                = azurerm_public_ip.pubip.name
   resource_group_name = azurerm_resource_group.rg.name
+  depends_on = [
+    azurerm_public_ip.pubip
+  ]
 }
 
 output "pubip" {
